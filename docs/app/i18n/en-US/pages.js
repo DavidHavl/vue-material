@@ -27,6 +27,12 @@ export default {
     installation: 'Installation',
     npmOrYarn: 'NPM or Yarn'
   },
+  configuration: {
+    title: 'Configuration',
+    viaVueGlobalObject: 'Via Vue global object',
+    inVueComponents: 'In Vue components',
+    options: 'Options',
+  },
   themes: {
     title: 'Themes'
   },
@@ -45,6 +51,9 @@ export default {
   themeAdvanced: {
     title: 'Themes - Advanced',
     nav: 'Advanced'
+  },
+  withRouter: {
+    title: 'Work with Vue Router'
   },
   components: {
     title: 'Components',

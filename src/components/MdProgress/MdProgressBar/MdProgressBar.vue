@@ -23,6 +23,10 @@
         type: Number,
         default: 0
       },
+      mdFillColor: {
+        type: String,
+        default: ''
+      },
       mdMode: {
         type: String,
         default: 'determinate',
@@ -49,7 +53,11 @@
       },
       progressValueStyle () {
         if (this.hasAmountFill) {
-          return `width: ${this.mdValue}%`
+          let returnValue = `width: ${this.mdValue}%`
+          if (this.mdFillColor) {
+            returnValue += '; background-color: ' + this.mdFillColor
+          }
+          return returnValue
         }
       },
       progressTrackStyle () {

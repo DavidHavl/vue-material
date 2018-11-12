@@ -95,6 +95,12 @@
             type: 'Number',
             description: 'The current buffer amount. From 0 to 100.',
             defaults: 'null'
+          },
+          {
+            name: 'md-fill-color',
+            type: 'String',
+            description: 'HEX color of the progress bar fill',
+            defaults: '-'
           }
         ]
       }

@@ -1217,7 +1217,8 @@ Object.defineProperty(exports, "__esModule", {
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 exports.default = function (context, props) {
-  return _extends({}, props, context.$options.components['router-link'].options.props);
+  var RouterLink = context.$options.components['RouterLink'] || context.$options.components['router-link']
+  return _extends({}, props, RouterLink.options.props);
 };
 
 /***/ }),
@@ -11617,6 +11618,10 @@ var _MdPropValidator = __webpack_require__(4);
 
 var _MdPropValidator2 = _interopRequireDefault(_MdPropValidator);
 
+var _MdProgressSpinnerAnimation = __webpack_require__(!(function webpackMissingModule() { var e = new Error("Cannot find module \"./MdProgressSpinnerAnimation\""); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
+
+var _MdProgressSpinnerAnimation2 = _interopRequireDefault(_MdProgressSpinnerAnimation);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
@@ -11625,7 +11630,6 @@ var MdProgressSpinner = {
   styleTag: null,
   diameters: new Set()
 };
-
 exports.default = new _MdComponent2.default({
   name: 'MdProgressSpinner',
   props: {
@@ -11663,12 +11667,25 @@ exports.default = new _MdComponent2.default({
       var _ref;
 
       var animationClass = 'md-progress-spinner-indeterminate';
-
       if (this.isIE) {
         animationClass += '-fallback';
       }
-
       return _ref = {}, _defineProperty(_ref, animationClass, true), _defineProperty(_ref, 'md-' + this.mdMode, true), _ref;
+    },
+    svgStyles: function svgStyles() {
+      var size = this.mdDiameter + 'px';
+      return {
+        width: size,
+        height: size
+      };
+    },
+    circleStyles: function circleStyles() {
+      return {
+        'stroke-dashoffset': this.circleStrokeDashOffset,
+        'stroke-dasharray': this.circleStrokeDashArray,
+        'stroke-width': this.circleStrokeWidth,
+        'animation-name': 'md-progress-spinner-stroke-rotate-' + this.mdDiameter
+      };
     },
     circleRadius: function circleRadius() {
       return (this.mdDiameter - this.mdStroke) / 2;
@@ -11686,39 +11703,40 @@ exports.default = new _MdComponent2.default({
       if (this.isDeterminate) {
         return this.circleCircumference * (100 - this.mdValue) / 100 + 'px';
       }
-
       if (this.isIndeterminate && this.isIE) {
         return this.circleCircumference * 0.2 + 'px';
       }
-
       return null;
     }
   },
   watch: {
     mdDiameter: function mdDiameter() {
-      this.attachSvgStyle();
-      this.attachCircleStyle();
+      this.attachStyleTag();
     }
   },
   methods: {
-    attachSvgStyle: function attachSvgStyle() {
-      var svg = this.$refs['md-progress-spinner-draw'];
-      var size = this.mdDiameter + 'px';
-      svg.style.width = size;
-      svg.style.height = size;
+    getAnimationCSS: function getAnimationCSS() {
+      return _MdProgressSpinnerAnimation2.default.replace(/START_VALUE/g, '' + 0.95 * this.circleCircumference).replace(/END_VALUE/g, '' + 0.2 * this.circleCircumference).replace(/DIAMETER/g, '' + this.mdDiameter);
     },
-    attachCircleStyle: function attachCircleStyle() {
-      var circle = this.$refs['md-progress-spinner-circle'];
-      circle.style.strokeDashoffset = this.circleStrokeDashOffset;
-      circle.style.strokeDasharray = this.circleStrokeDashArray;
-      circle.style.strokeWidth = this.circleStrokeWidth;
-      circle.style.setProperty('--md-progress-spinner-start-value', 0.95 * this.circleCircumference);
-      circle.style.setProperty('--md-progress-spinner-end-value', 0.2 * this.circleCircumference);
+    attachStyleTag: function attachStyleTag() {
+      var styleTag = MdProgressSpinner.styleTag;
+      if (!styleTag) {
+        styleTag = document.getElementById('md-progress-spinner-styles');
+      }
+      if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'md-progress-spinner-styles';
+        document.head.appendChild(styleTag);
+        MdProgressSpinner.styleTag = styleTag;
+      }
+      if (styleTag && styleTag.sheet) {
+        styleTag.sheet.insertRule(this.getAnimationCSS(), 0);
+      }
+      MdProgressSpinner.diameters.add(this.mdDiameter);
     }
   },
   mounted: function mounted() {
-    this.attachSvgStyle();
-    this.attachCircleStyle();
+    this.attachStyleTag();
   }
 });
 
@@ -30457,8 +30475,8 @@ var render = function() {
           _c(
             "svg",
             {
-              ref: "md-progress-spinner-draw",
               staticClass: "md-progress-spinner-draw",
+              style: _vm.svgStyles,
               attrs: {
                 preserveAspectRatio: "xMidYMid meet",
                 focusable: "false",
@@ -30467,8 +30485,8 @@ var render = function() {
             },
             [
               _c("circle", {
-                ref: "md-progress-spinner-circle",
                 staticClass: "md-progress-spinner-circle",
+                style: _vm.circleStyles,
                 attrs: { cx: "50%", cy: "50%", r: _vm.circleRadius }
               })
             ]

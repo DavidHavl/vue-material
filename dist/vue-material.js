@@ -329,9 +329,9 @@ var MILLISECONDS_IN_MINUTE = 60000
 var DEFAULT_ADDITIONAL_DIGITS = 2
 
 var patterns = {
-  dateTimeDelimeter: /[T ]/,
+  dateTimeDelimiter: /[T ]/,
   plainTime: /:/,
-  timeZoneDelimeter: /[Z ]/i,
+  timeZoneDelimiter: /[Z ]/i,
 
   // year tokens
   YY: /^(\d{2})$/,
@@ -387,6 +387,32 @@ var patterns = {
  * **Note**: *all* Date arguments passed to any *date-fns* function is processed by `toDate`.
  * All *date-fns* functions will throw `RangeError` if `options.additionalDigits` is not 0, 1, 2 or undefined.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
+ * - The previous `parse` implementation was renamed to `toDate`.
+ *
+ *   ```javascript
+ *   // Before v2.0.0
+ *   parse('2016-01-01')
+ *
+ *   // v2.0.0 onward
+ *   toDate('2016-01-01')
+ *   ```
+ *
+ * - `toDate` now validates separate date and time values in ISO-8601 strings
+ *   and returns `Invalid Date` if the date is invalid.
+ *
+ *   ```javascript
+ *   toDate('2018-13-32')
+ *   //=> Invalid Date
+ *   ```
+ *
+ * - `toDate` now doesn't fall back to `new Date` constructor
+ *   if it fails to parse a string argument. Instead, it returns `Invalid Date`.
+ *
  * @param {Date|String|Number} argument - the value to convert
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
  * @param {0|1|2} [options.additionalDigits=2] - the additional number of digits in the extended year format
@@ -402,12 +428,14 @@ var patterns = {
  * @example
  * // Convert string '+02014101' to date,
  * // if the additional number of digits in the extended year format is 1:
- * var result = toDate('+02014101', {additionalDigits: 1})
+ * var result = toDate('+02014101', { additionalDigits: 1 })
  * //=> Fri Apr 11 2014 00:00:00
  */
-function toDate (argument, dirtyOptions) {
+function toDate(argument, dirtyOptions) {
   if (arguments.length < 1) {
-    throw new TypeError('1 argument required, but only ' + arguments.length + ' present')
+    throw new TypeError(
+      '1 argument required, but only ' + arguments.length + ' present'
+    )
   }
 
   if (argument === null) {
@@ -416,20 +444,37 @@ function toDate (argument, dirtyOptions) {
 
   var options = dirtyOptions || {}
 
-  var additionalDigits = options.additionalDigits == null ? DEFAULT_ADDITIONAL_DIGITS : Object(__WEBPACK_IMPORTED_MODULE_0__lib_toInteger_index_js__["a" /* default */])(options.additionalDigits)
-  if (additionalDigits !== 2 && additionalDigits !== 1 && additionalDigits !== 0) {
+  var additionalDigits =
+    options.additionalDigits == null
+      ? DEFAULT_ADDITIONAL_DIGITS
+      : Object(__WEBPACK_IMPORTED_MODULE_0__lib_toInteger_index_js__["a" /* default */])(options.additionalDigits)
+  if (
+    additionalDigits !== 2 &&
+    additionalDigits !== 1 &&
+    additionalDigits !== 0
+  ) {
     throw new RangeError('additionalDigits must be 0, 1 or 2')
   }
 
   // Clone the date
-  if (argument instanceof Date ||
-    (typeof argument === 'object' && Object.prototype.toString.call(argument) === '[object Date]')
+  if (
+    argument instanceof Date ||
+    (typeof argument === 'object' &&
+      Object.prototype.toString.call(argument) === '[object Date]')
   ) {
     // Prevent the date to lose the milliseconds when passed to new Date() in IE10
     return new Date(argument.getTime())
-  } else if (typeof argument === 'number' || Object.prototype.toString.call(argument) === '[object Number]') {
+  } else if (
+    typeof argument === 'number' ||
+    Object.prototype.toString.call(argument) === '[object Number]'
+  ) {
     return new Date(argument)
-  } else if (!(typeof argument === 'string' || Object.prototype.toString.call(argument) === '[object String]')) {
+  } else if (
+    !(
+      typeof argument === 'string' ||
+      Object.prototype.toString.call(argument) === '[object String]'
+    )
+  ) {
     return new Date(NaN)
   }
 
@@ -464,9 +509,20 @@ function toDate (argument, dirtyOptions) {
         return new Date(NaN)
       }
     } else {
-      // get offset accurate to hour in timezones that change offset
-      offset = Object(__WEBPACK_IMPORTED_MODULE_1__lib_getTimezoneOffsetInMilliseconds_index_js__["a" /* default */])(new Date(timestamp + time))
-      offset = Object(__WEBPACK_IMPORTED_MODULE_1__lib_getTimezoneOffsetInMilliseconds_index_js__["a" /* default */])(new Date(timestamp + time + offset))
+      var fullTime = timestamp + time
+      var fullTimeDate = new Date(fullTime)
+
+      offset = Object(__WEBPACK_IMPORTED_MODULE_1__lib_getTimezoneOffsetInMilliseconds_index_js__["a" /* default */])(fullTimeDate)
+
+      // Adjust time when it's coming from DST
+      var fullTimeDateNextDay = new Date(fullTime)
+      fullTimeDateNextDay.setDate(fullTimeDate.getDate() + 1)
+      var offsetDiff =
+        Object(__WEBPACK_IMPORTED_MODULE_1__lib_getTimezoneOffsetInMilliseconds_index_js__["a" /* default */])(fullTimeDateNextDay) -
+        Object(__WEBPACK_IMPORTED_MODULE_1__lib_getTimezoneOffsetInMilliseconds_index_js__["a" /* default */])(fullTimeDate)
+      if (offsetDiff > 0) {
+        offset += offsetDiff
+      }
     }
 
     return new Date(timestamp + time + offset)
@@ -475,9 +531,9 @@ function toDate (argument, dirtyOptions) {
   }
 }
 
-function splitDateString (dateString) {
+function splitDateString(dateString) {
   var dateStrings = {}
-  var array = dateString.split(patterns.dateTimeDelimeter)
+  var array = dateString.split(patterns.dateTimeDelimiter)
   var timeString
 
   if (patterns.plainTime.test(array[0])) {
@@ -486,8 +542,8 @@ function splitDateString (dateString) {
   } else {
     dateStrings.date = array[0]
     timeString = array[1]
-    if (patterns.timeZoneDelimeter.test(dateStrings.date)) {
-      dateStrings.date = dateString.split(patterns.timeZoneDelimeter)[0]
+    if (patterns.timeZoneDelimiter.test(dateStrings.date)) {
+      dateStrings.date = dateString.split(patterns.timeZoneDelimiter)[0]
       timeString = dateString.substr(dateStrings.date.length, dateString.length)
     }
   }
@@ -505,7 +561,7 @@ function splitDateString (dateString) {
   return dateStrings
 }
 
-function parseYear (dateString, additionalDigits) {
+function parseYear(dateString, additionalDigits) {
   var patternYYY = patterns.YYY[additionalDigits]
   var patternYYYYY = patterns.YYYYY[additionalDigits]
 
@@ -537,7 +593,7 @@ function parseYear (dateString, additionalDigits) {
   }
 }
 
-function parseDate (dateString, year) {
+function parseDate(dateString, year) {
   // Invalid ISO-formatted year
   if (year === null) {
     return null
@@ -627,7 +683,7 @@ function parseDate (dateString, year) {
   return null
 }
 
-function parseTime (timeString) {
+function parseTime(timeString) {
   var token
   var hours
   var minutes
@@ -654,8 +710,9 @@ function parseTime (timeString) {
       return NaN
     }
 
-    return (hours % 24) * MILLISECONDS_IN_HOUR +
-      minutes * MILLISECONDS_IN_MINUTE
+    return (
+      (hours % 24) * MILLISECONDS_IN_HOUR + minutes * MILLISECONDS_IN_MINUTE
+    )
   }
 
   // hh:mm:ss or hhmmss
@@ -669,16 +726,18 @@ function parseTime (timeString) {
       return NaN
     }
 
-    return (hours % 24) * MILLISECONDS_IN_HOUR +
+    return (
+      (hours % 24) * MILLISECONDS_IN_HOUR +
       minutes * MILLISECONDS_IN_MINUTE +
       seconds * 1000
+    )
   }
 
   // Invalid ISO-formatted time
   return null
 }
 
-function parseTimezone (timezoneString) {
+function parseTimezone(timezoneString) {
   var token
   var absoluteOffset
 
@@ -700,7 +759,7 @@ function parseTimezone (timezoneString) {
     }
 
     absoluteOffset = hours * MILLISECONDS_IN_HOUR
-    return (token[1] === '+') ? -absoluteOffset : absoluteOffset
+    return token[1] === '+' ? -absoluteOffset : absoluteOffset
   }
 
   // ±hh:mm or ±hhmm
@@ -713,14 +772,15 @@ function parseTimezone (timezoneString) {
       return NaN
     }
 
-    absoluteOffset = hours * MILLISECONDS_IN_HOUR + minutes * MILLISECONDS_IN_MINUTE
-    return (token[1] === '+') ? -absoluteOffset : absoluteOffset
+    absoluteOffset =
+      hours * MILLISECONDS_IN_HOUR + minutes * MILLISECONDS_IN_MINUTE
+    return token[1] === '+' ? -absoluteOffset : absoluteOffset
   }
 
   return 0
 }
 
-function dayOfISOWeekYear (isoWeekYear, week, day) {
+function dayOfISOWeekYear(isoWeekYear, week, day) {
   week = week || 0
   day = day || 0
   var date = new Date(0)
@@ -736,11 +796,11 @@ function dayOfISOWeekYear (isoWeekYear, week, day) {
 var DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 var DAYS_IN_MONTH_LEAP_YEAR = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-function isLeapYearIndex (year) {
+function isLeapYearIndex(year) {
   return year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0)
 }
 
-function validateDate (year, month, date) {
+function validateDate(year, month, date) {
   if (month < 0 || month > 11) {
     return false
   }
@@ -762,7 +822,7 @@ function validateDate (year, month, date) {
   return true
 }
 
-function validateDayOfYearDate (year, dayOfYear) {
+function validateDayOfYearDate(year, dayOfYear) {
   if (dayOfYear < 1) {
     return false
   }
@@ -778,7 +838,7 @@ function validateDayOfYearDate (year, dayOfYear) {
   return true
 }
 
-function validateWeekDate (year, week, day) {
+function validateWeekDate(year, week, day) {
   if (week < 0 || week > 52) {
     return false
   }
@@ -790,7 +850,7 @@ function validateWeekDate (year, week, day) {
   return true
 }
 
-function validateTime (hours, minutes, seconds) {
+function validateTime(hours, minutes, seconds) {
   if (hours != null && (hours < 0 || hours >= 25)) {
     return false
   }
@@ -806,7 +866,7 @@ function validateTime (hours, minutes, seconds) {
   return true
 }
 
-function validateTimezone (hours, minutes) {
+function validateTimezone(hours, minutes) {
   if (minutes != null && (minutes < 0 || minutes > 59)) {
     return false
   }
@@ -1217,7 +1277,7 @@ Object.defineProperty(exports, "__esModule", {
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
 exports.default = function (context, props) {
-  var RouterLink = context.$options.components['RouterLink'] || context.$options.components['router-link']
+  var RouterLink = context.$options.components['RouterLink'] || context.$options.components['router-link'];
   return _extends({}, props, RouterLink.options.props);
 };
 
@@ -2022,6 +2082,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * @description
  * Get the number of days in a month of the given date.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} date - the given date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
  * @param {0|1|2} [options.additionalDigits=2] - passed to `toDate`. See [toDate]{@link https://date-fns.org/docs/toDate}
@@ -2616,60 +2681,60 @@ function emptyTarget(val) {
 	return Array.isArray(val) ? [] : {}
 }
 
-function cloneUnlessOtherwiseSpecified(value, optionsArgument) {
-	var clone = !optionsArgument || optionsArgument.clone !== false;
-
-	return (clone && isMergeableObject(value))
-		? deepmerge(emptyTarget(value), value, optionsArgument)
+function cloneUnlessOtherwiseSpecified(value, options) {
+	return (options.clone !== false && options.isMergeableObject(value))
+		? deepmerge(emptyTarget(value), value, options)
 		: value
 }
 
-function defaultArrayMerge(target, source, optionsArgument) {
+function defaultArrayMerge(target, source, options) {
 	return target.concat(source).map(function(element) {
-		return cloneUnlessOtherwiseSpecified(element, optionsArgument)
+		return cloneUnlessOtherwiseSpecified(element, options)
 	})
 }
 
-function mergeObject(target, source, optionsArgument) {
+function mergeObject(target, source, options) {
 	var destination = {};
-	if (isMergeableObject(target)) {
+	if (options.isMergeableObject(target)) {
 		Object.keys(target).forEach(function(key) {
-			destination[key] = cloneUnlessOtherwiseSpecified(target[key], optionsArgument);
+			destination[key] = cloneUnlessOtherwiseSpecified(target[key], options);
 		});
 	}
 	Object.keys(source).forEach(function(key) {
-		if (!isMergeableObject(source[key]) || !target[key]) {
-			destination[key] = cloneUnlessOtherwiseSpecified(source[key], optionsArgument);
+		if (!options.isMergeableObject(source[key]) || !target[key]) {
+			destination[key] = cloneUnlessOtherwiseSpecified(source[key], options);
 		} else {
-			destination[key] = deepmerge(target[key], source[key], optionsArgument);
+			destination[key] = deepmerge(target[key], source[key], options);
 		}
 	});
 	return destination
 }
 
-function deepmerge(target, source, optionsArgument) {
+function deepmerge(target, source, options) {
+	options = options || {};
+	options.arrayMerge = options.arrayMerge || defaultArrayMerge;
+	options.isMergeableObject = options.isMergeableObject || isMergeableObject;
+
 	var sourceIsArray = Array.isArray(source);
 	var targetIsArray = Array.isArray(target);
-	var options = optionsArgument || { arrayMerge: defaultArrayMerge };
 	var sourceAndTargetTypesMatch = sourceIsArray === targetIsArray;
 
 	if (!sourceAndTargetTypesMatch) {
-		return cloneUnlessOtherwiseSpecified(source, optionsArgument)
+		return cloneUnlessOtherwiseSpecified(source, options)
 	} else if (sourceIsArray) {
-		var arrayMerge = options.arrayMerge || defaultArrayMerge;
-		return arrayMerge(target, source, optionsArgument)
+		return options.arrayMerge(target, source, options)
 	} else {
-		return mergeObject(target, source, optionsArgument)
+		return mergeObject(target, source, options)
 	}
 }
 
-deepmerge.all = function deepmergeAll(array, optionsArgument) {
+deepmerge.all = function deepmergeAll(array, options) {
 	if (!Array.isArray(array)) {
 		throw new Error('first argument should be an array')
 	}
 
 	return array.reduce(function(prev, next) {
-		return deepmerge(prev, next, optionsArgument)
+		return deepmerge(prev, next, options)
 	}, {})
 };
 
@@ -6549,6 +6614,33 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  *
  * Time value of Date: http://es5.github.io/#x15.9.1.1
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ * 
+ * - Now `isValid` doesn't throw an exception
+ *   if the first argument is not an instance of Date.
+ *   Instead, argument is converted beforehand using `toDate`.
+ * 
+ *   Examples:
+ * 
+ *   | `isValid` argument        | Before v2.0.0 | v2.0.0 onward |
+ *   |---------------------------|---------------|---------------|
+ *   | `new Date()`              | `true`        | `true`        |
+ *   | `new Date('2016-01-01')`  | `true`        | `true`        |
+ *   | `new Date('')`            | `false`       | `false`       |
+ *   | `new Date(1488370835081)` | `true`        | `true`        |
+ *   | `new Date(NaN)`           | `false`       | `false`       |
+ *   | `'2016-01-01'`            | `TypeError`   | `true`        |
+ *   | `''`                      | `TypeError`   | `false`       |
+ *   | `1488370835081`           | `TypeError`   | `true`        |
+ *   | `NaN`                     | `TypeError`   | `false`       |
+ * 
+ *   We introduce this change to make *date-fns* consistent with ECMAScript behavior
+ *   that try to coerce arguments to the expected type
+ *   (which is also the case with other *date-fns* functions).
+ *
  * @param {*} date - the date to check
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
  * @param {0|1|2} [options.additionalDigits=2] - passed to `toDate`. See [toDate]{@link https://date-fns.org/docs/toDate}
@@ -6919,7 +7011,7 @@ var localize = {
     values: dayPeriodValues,
     defaultWidth: 'wide',
     formattingValues: formattingDayPeriodValues,
-    defaulFormattingWidth: 'wide'
+    defaultFormattingWidth: 'wide'
   })
 }
 
@@ -7342,6 +7434,11 @@ var toDate = __webpack_require__(3);
  * @description
  * Add the specified number of milliseconds to the given date.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} date - the date to be changed
  * @param {Number} amount - the amount of milliseconds to be added
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
@@ -7377,6 +7474,11 @@ function addMilliseconds (dirtyDate, dirtyAmount, dirtyOptions) {
  *
  * @description
  * Subtract the specified number of milliseconds from the given date.
+ *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|String|Number} date - the date to be changed
  * @param {Number} amount - the amount of milliseconds to be subtracted
@@ -7914,6 +8016,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  *
  * @description
  * Add the specified number of months to the given date.
+ *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|String|Number} date - the date to be changed
  * @param {Number} amount - the amount of months to be added
@@ -11618,10 +11725,6 @@ var _MdPropValidator = __webpack_require__(4);
 
 var _MdPropValidator2 = _interopRequireDefault(_MdPropValidator);
 
-var _MdProgressSpinnerAnimation = __webpack_require__(!(function webpackMissingModule() { var e = new Error("Cannot find module \"./MdProgressSpinnerAnimation\""); e.code = 'MODULE_NOT_FOUND'; throw e; }()));
-
-var _MdProgressSpinnerAnimation2 = _interopRequireDefault(_MdProgressSpinnerAnimation);
-
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
@@ -11630,6 +11733,7 @@ var MdProgressSpinner = {
   styleTag: null,
   diameters: new Set()
 };
+
 exports.default = new _MdComponent2.default({
   name: 'MdProgressSpinner',
   props: {
@@ -11667,25 +11771,12 @@ exports.default = new _MdComponent2.default({
       var _ref;
 
       var animationClass = 'md-progress-spinner-indeterminate';
+
       if (this.isIE) {
         animationClass += '-fallback';
       }
+
       return _ref = {}, _defineProperty(_ref, animationClass, true), _defineProperty(_ref, 'md-' + this.mdMode, true), _ref;
-    },
-    svgStyles: function svgStyles() {
-      var size = this.mdDiameter + 'px';
-      return {
-        width: size,
-        height: size
-      };
-    },
-    circleStyles: function circleStyles() {
-      return {
-        'stroke-dashoffset': this.circleStrokeDashOffset,
-        'stroke-dasharray': this.circleStrokeDashArray,
-        'stroke-width': this.circleStrokeWidth,
-        'animation-name': 'md-progress-spinner-stroke-rotate-' + this.mdDiameter
-      };
     },
     circleRadius: function circleRadius() {
       return (this.mdDiameter - this.mdStroke) / 2;
@@ -11703,40 +11794,39 @@ exports.default = new _MdComponent2.default({
       if (this.isDeterminate) {
         return this.circleCircumference * (100 - this.mdValue) / 100 + 'px';
       }
+
       if (this.isIndeterminate && this.isIE) {
         return this.circleCircumference * 0.2 + 'px';
       }
+
       return null;
     }
   },
   watch: {
     mdDiameter: function mdDiameter() {
-      this.attachStyleTag();
+      this.attachSvgStyle();
+      this.attachCircleStyle();
     }
   },
   methods: {
-    getAnimationCSS: function getAnimationCSS() {
-      return _MdProgressSpinnerAnimation2.default.replace(/START_VALUE/g, '' + 0.95 * this.circleCircumference).replace(/END_VALUE/g, '' + 0.2 * this.circleCircumference).replace(/DIAMETER/g, '' + this.mdDiameter);
+    attachSvgStyle: function attachSvgStyle() {
+      var svg = this.$refs['md-progress-spinner-draw'];
+      var size = this.mdDiameter + 'px';
+      svg.style.width = size;
+      svg.style.height = size;
     },
-    attachStyleTag: function attachStyleTag() {
-      var styleTag = MdProgressSpinner.styleTag;
-      if (!styleTag) {
-        styleTag = document.getElementById('md-progress-spinner-styles');
-      }
-      if (!styleTag) {
-        styleTag = document.createElement('style');
-        styleTag.id = 'md-progress-spinner-styles';
-        document.head.appendChild(styleTag);
-        MdProgressSpinner.styleTag = styleTag;
-      }
-      if (styleTag && styleTag.sheet) {
-        styleTag.sheet.insertRule(this.getAnimationCSS(), 0);
-      }
-      MdProgressSpinner.diameters.add(this.mdDiameter);
+    attachCircleStyle: function attachCircleStyle() {
+      var circle = this.$refs['md-progress-spinner-circle'];
+      circle.style.strokeDashoffset = this.circleStrokeDashOffset;
+      circle.style.strokeDasharray = this.circleStrokeDashArray;
+      circle.style.strokeWidth = this.circleStrokeWidth;
+      circle.style.setProperty('--md-progress-spinner-start-value', 0.95 * this.circleCircumference);
+      circle.style.setProperty('--md-progress-spinner-end-value', 0.2 * this.circleCircumference);
     }
   },
   mounted: function mounted() {
-    this.attachStyleTag();
+    this.attachSvgStyle();
+    this.attachCircleStyle();
   }
 });
 
@@ -15689,7 +15779,7 @@ var render = function() {
           style: _vm.contentStyles,
           on: {
             "&scroll": function($event) {
-              _vm.handleScroll($event)
+              return _vm.handleScroll($event)
             }
           }
         },
@@ -15704,7 +15794,7 @@ var render = function() {
               style: _vm.containerStyles,
               on: {
                 "&scroll": function($event) {
-                  _vm.handleScroll($event)
+                  return _vm.handleScroll($event)
                 }
               }
             },
@@ -16650,14 +16740,14 @@ var render = function() {
                 on: {
                   focus: function($event) {
                     $event.stopPropagation()
-                    _vm.openOnFocus($event)
+                    return _vm.openOnFocus($event)
                   },
                   blur: _vm.hideOptions,
                   input: _vm.onInput,
                   click: function($event) {
                     $event.stopPropagation()
                     $event.preventDefault()
-                    _vm.openOnFocus($event)
+                    return _vm.openOnFocus($event)
                   }
                 },
                 model: {
@@ -16730,22 +16820,23 @@ var render = function() {
                         ],
                         2
                       )
-                    })
+                    }),
+                    1
                   )
                 : _vm.hasScopedEmptySlot
-                  ? _c("md-menu-item", [
-                      _c(
-                        "div",
-                        { staticClass: "md-autocomplete-empty" },
-                        [
-                          _vm._t("md-autocomplete-empty", null, {
-                            term: _vm.searchTerm
-                          })
-                        ],
-                        2
-                      )
-                    ])
-                  : _vm._e()
+                ? _c("md-menu-item", [
+                    _c(
+                      "div",
+                      { staticClass: "md-autocomplete-empty" },
+                      [
+                        _vm._t("md-autocomplete-empty", null, {
+                          term: _vm.searchTerm
+                        })
+                      ],
+                      2
+                    )
+                  ])
+                : _vm._e()
             ],
             1
           )
@@ -17034,17 +17125,17 @@ var render = function() {
       class: ["md-ripple", _vm.rippleClasses],
       on: {
         "&touchstart": function($event) {
-          ;(function(event) {
+          return (function(event) {
             return _vm.mdEventTrigger && _vm.touchStartCheck(event)
           })($event)
         },
         "&touchmove": function($event) {
-          ;(function(event) {
+          return (function(event) {
             return _vm.mdEventTrigger && _vm.touchMoveCheck(event)
           })($event)
         },
         "&mousedown": function($event) {
-          ;(function(event) {
+          return (function(event) {
             return _vm.mdEventTrigger && _vm.startRipple(event)
           })($event)
         }
@@ -18618,7 +18709,7 @@ var render = function() {
           on: {
             click: function($event) {
               $event.stopPropagation()
-              _vm.toggleCheck($event)
+              return _vm.toggleCheck($event)
             }
           }
         },
@@ -18665,7 +18756,7 @@ var render = function() {
               on: {
                 click: function($event) {
                   $event.preventDefault()
-                  _vm.toggleCheck($event)
+                  return _vm.toggleCheck($event)
                 }
               }
             },
@@ -19289,39 +19380,124 @@ var render = function() {
   var _vm = this
   var _h = _vm.$createElement
   var _c = _vm._self._c || _h
-  return _c(
-    "input",
-    _vm._g(
-      _vm._b(
-        {
-          directives: [
-            {
-              name: "model",
-              rawName: "v-model",
-              value: _vm.model,
-              expression: "model"
-            }
-          ],
-          staticClass: "md-input",
-          domProps: { value: _vm.model },
-          on: {
-            focus: _vm.onFocus,
-            blur: _vm.onBlur,
-            input: function($event) {
-              if ($event.target.composing) {
-                return
-              }
-              _vm.model = $event.target.value
-            }
-          }
-        },
+  return _vm.attributes.type === "checkbox"
+    ? _c(
         "input",
-        _vm.attributes,
-        false
-      ),
-      _vm.listeners
-    )
-  )
+        _vm._g(
+          _vm._b(
+            {
+              directives: [
+                {
+                  name: "model",
+                  rawName: "v-model",
+                  value: _vm.model,
+                  expression: "model"
+                }
+              ],
+              staticClass: "md-input",
+              attrs: { type: "checkbox" },
+              domProps: {
+                checked: Array.isArray(_vm.model)
+                  ? _vm._i(_vm.model, null) > -1
+                  : _vm.model
+              },
+              on: {
+                focus: _vm.onFocus,
+                blur: _vm.onBlur,
+                change: function($event) {
+                  var $$a = _vm.model,
+                    $$el = $event.target,
+                    $$c = $$el.checked ? true : false
+                  if (Array.isArray($$a)) {
+                    var $$v = null,
+                      $$i = _vm._i($$a, $$v)
+                    if ($$el.checked) {
+                      $$i < 0 && (_vm.model = $$a.concat([$$v]))
+                    } else {
+                      $$i > -1 &&
+                        (_vm.model = $$a
+                          .slice(0, $$i)
+                          .concat($$a.slice($$i + 1)))
+                    }
+                  } else {
+                    _vm.model = $$c
+                  }
+                }
+              }
+            },
+            "input",
+            _vm.attributes,
+            false
+          ),
+          _vm.listeners
+        )
+      )
+    : _vm.attributes.type === "radio"
+    ? _c(
+        "input",
+        _vm._g(
+          _vm._b(
+            {
+              directives: [
+                {
+                  name: "model",
+                  rawName: "v-model",
+                  value: _vm.model,
+                  expression: "model"
+                }
+              ],
+              staticClass: "md-input",
+              attrs: { type: "radio" },
+              domProps: { checked: _vm._q(_vm.model, null) },
+              on: {
+                focus: _vm.onFocus,
+                blur: _vm.onBlur,
+                change: function($event) {
+                  _vm.model = null
+                }
+              }
+            },
+            "input",
+            _vm.attributes,
+            false
+          ),
+          _vm.listeners
+        )
+      )
+    : _c(
+        "input",
+        _vm._g(
+          _vm._b(
+            {
+              directives: [
+                {
+                  name: "model",
+                  rawName: "v-model",
+                  value: _vm.model,
+                  expression: "model"
+                }
+              ],
+              staticClass: "md-input",
+              attrs: { type: _vm.attributes.type },
+              domProps: { value: _vm.model },
+              on: {
+                focus: _vm.onFocus,
+                blur: _vm.onBlur,
+                input: function($event) {
+                  if ($event.target.composing) {
+                    return
+                  }
+                  _vm.model = $event.target.value
+                }
+              }
+            },
+            "input",
+            _vm.attributes,
+            false
+          ),
+          _vm.listeners
+        )
+      )
 }
 var staticRenderFns = []
 render._withStripped = true
@@ -19363,7 +19539,7 @@ var render = function() {
               keydown: function($event) {
                 if (
                   !("button" in $event) &&
-                  _vm._k($event.keyCode, "enter", 13, $event.key)
+                  _vm._k($event.keyCode, "enter", 13, $event.key, "Enter")
                 ) {
                   return null
                 }
@@ -19403,17 +19579,17 @@ var render = function() {
                 function($event) {
                   if (
                     !("button" in $event) &&
-                    _vm._k($event.keyCode, "enter", 13, $event.key)
+                    _vm._k($event.keyCode, "enter", 13, $event.key, "Enter")
                   ) {
                     return null
                   }
-                  _vm.insertChip($event)
+                  return _vm.insertChip($event)
                 },
                 function($event) {
                   if (!("button" in $event) && $event.keyCode !== 8) {
                     return null
                   }
-                  _vm.handleBackRemove($event)
+                  return _vm.handleBackRemove($event)
                 }
               ]
             },
@@ -20119,7 +20295,7 @@ var formatters = {
       // Numerical value (same as in `e`)
       case 'c':
         return String(localDayOfWeek)
-      // Padded numberical value
+      // Padded numerical value
       case 'cc':
         return addLeadingZeros(localDayOfWeek, token.length)
       // 1st, 2nd, ..., 7th
@@ -20336,18 +20512,18 @@ var formatters = {
       case 'X':
         return formatTimezoneWithOptionalMinutes(timezoneOffset)
 
-      // Hours, minutes and optional seconds without `:` delimeter
+      // Hours, minutes and optional seconds without `:` delimiter
       // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
       // so this token always has the same output as `XX`
       case 'XXXX':
-      case 'XX': // Hours and minutes without `:` delimeter
+      case 'XX': // Hours and minutes without `:` delimiter
         return formatTimezone(timezoneOffset)
 
-      // Hours, minutes and optional seconds with `:` delimeter
+      // Hours, minutes and optional seconds with `:` delimiter
       // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
       // so this token always has the same output as `XXX`
       case 'XXXXX':
-      case 'XXX': // Hours and minutes with `:` delimeter
+      case 'XXX': // Hours and minutes with `:` delimiter
       default:
         return formatTimezone(timezoneOffset, ':')
     }
@@ -20363,18 +20539,18 @@ var formatters = {
       case 'x':
         return formatTimezoneWithOptionalMinutes(timezoneOffset)
 
-      // Hours, minutes and optional seconds without `:` delimeter
+      // Hours, minutes and optional seconds without `:` delimiter
       // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
       // so this token always has the same output as `xx`
       case 'xxxx':
-      case 'xx': // Hours and minutes without `:` delimeter
+      case 'xx': // Hours and minutes without `:` delimiter
         return formatTimezone(timezoneOffset)
 
-      // Hours, minutes and optional seconds with `:` delimeter
+      // Hours, minutes and optional seconds with `:` delimiter
       // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
       // so this token always has the same output as `xxx`
       case 'xxxxx':
-      case 'xxx': // Hours and minutes with `:` delimeter
+      case 'xxx': // Hours and minutes with `:` delimiter
       default:
         return formatTimezone(timezoneOffset, ':')
     }
@@ -20440,24 +20616,24 @@ function addLeadingZeros (number, targetLength) {
   return sign + output
 }
 
-function formatTimezone (offset, dirtyDelimeter) {
-  var delimeter = dirtyDelimeter || ''
+function formatTimezone (offset, dirtyDelimiter) {
+  var delimiter = dirtyDelimiter || ''
   var sign = offset > 0 ? '-' : '+'
   var absOffset = Math.abs(offset)
   var hours = addLeadingZeros(Math.floor(absOffset / 60), 2)
   var minutes = addLeadingZeros(absOffset % 60, 2)
-  return sign + hours + delimeter + minutes
+  return sign + hours + delimiter + minutes
 }
 
-function formatTimezoneWithOptionalMinutes (offset, dirtyDelimeter) {
+function formatTimezoneWithOptionalMinutes (offset, dirtyDelimiter) {
   if (offset % 60 === 0) {
     var sign = offset > 0 ? '-' : '+'
     return sign + addLeadingZeros(Math.abs(offset) / 60, 2)
   }
-  return formatTimezone(offset, dirtyDelimeter)
+  return formatTimezone(offset, dirtyDelimiter)
 }
 
-function formatTimezoneShort (offset, dirtyDelimeter) {
+function formatTimezoneShort (offset, dirtyDelimiter) {
   var sign = offset > 0 ? '-' : '+'
   var absOffset = Math.abs(offset)
   var hours = Math.floor(absOffset / 60)
@@ -20465,8 +20641,8 @@ function formatTimezoneShort (offset, dirtyDelimeter) {
   if (minutes === 0) {
     return sign + String(hours)
   }
-  var delimeter = dirtyDelimeter || ''
-  return sign + String(hours) + delimeter + addLeadingZeros(minutes, 2)
+  var delimiter = dirtyDelimiter || ''
+  return sign + String(hours) + delimiter + addLeadingZeros(minutes, 2)
 }
 
 /* harmony default export */ var _lib_formatters = (formatters);
@@ -20821,6 +20997,27 @@ var doubleQuoteRegExp = /''/g
  *
  * 8. These tokens are often confused with others. See: https://git.io/fxCyr
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
+ * - The second argument is now required for the sake of explicitness.
+ *
+ *   ```javascript
+ *   // Before v2.0.0
+ *   format(new Date(2016, 0, 1))
+ *
+ *   // v2.0.0 onward
+ *   format(new Date(2016, 0, 1), "yyyy-MM-dd'T'HH:mm:ss.SSSxxx")
+ *   ```
+ *
+ * - New format string API for `format` function
+ *   which is based on [Unicode Technical Standard #35](https://www.unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table).
+ *   See [this post](https://blog.date-fns.org/post/unicode-tokens-in-date-fns-v2-sreatyki91jg) for more details.
+ *
+ * - Characters are now escaped using single quote symbols (`'`) instead of square brackets.
+ *
  * @param {Date|String|Number} date - the original date
  * @param {String} format - the string of tokens
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
@@ -20843,28 +21040,20 @@ var doubleQuoteRegExp = /''/g
  *
  * @example
  * // Represent 11 February 2014 in middle-endian format:
- * var result = format(
- *   new Date(2014, 1, 11),
- *   'MM/dd/yyyy'
- * )
+ * var result = format(new Date(2014, 1, 11), 'MM/dd/yyyy')
  * //=> '02/11/2014'
  *
  * @example
  * // Represent 2 July 2014 in Esperanto:
  * import { eoLocale } from 'date-fns/locale/eo'
- * var result = format(
- *   new Date(2014, 6, 2),
- *   "do 'de' MMMM yyyy",
- *   {locale: eoLocale}
- * )
+ * var result = format(new Date(2014, 6, 2), "do 'de' MMMM yyyy", {
+ *   locale: eoLocale
+ * })
  * //=> '2-a de julio 2014'
  *
  * @example
  * // Escape string by single quote characters:
- * var result = format(
- *   new Date(2014, 6, 2, 15),
- *   "h 'o''clock'"
- * )
+ * var result = format(new Date(2014, 6, 2, 15), "h 'o''clock'")
  * //=> "3 o'clock"
  */
 function format(dirtyDate, dirtyFormatStr, dirtyOptions) {
@@ -22507,6 +22696,23 @@ var notWhitespaceRegExp = /\S/
  * Invalid Date is a Date, whose time value is NaN.
  * Time value of Date: http://es5.github.io/#x15.9.1.1
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
+ * - Old `parse` was renamed to `toDate`.
+ *   Now `parse` is a new function which parses a string using a provided format.
+ *
+ *   ```javascript
+ *   // Before v2.0.0
+ *   parse('2016-01-01')
+ *
+ *   // v2.0.0 onward
+ *   toDate('2016-01-01')
+ *   parse('2016-01-01', 'yyyy-MM-dd', new Date())
+ *   ```
+ *
  * @param {String} dateString - the string to parse
  * @param {String} formatString - the string of tokens
  * @param {Date|String|Number} baseDate - defines values missing from the parsed dateString
@@ -22529,22 +22735,15 @@ var notWhitespaceRegExp = /\S/
  *
  * @example
  * // Parse 11 February 2014 from middle-endian format:
- * var result = parse(
- *   '02/11/2014',
- *   'MM/dd/yyyy',
- *   new Date()
- * )
+ * var result = parse('02/11/2014', 'MM/dd/yyyy', new Date())
  * //=> Tue Feb 11 2014 00:00:00
  *
  * @example
  * // Parse 28th of February in Esperanto locale in the context of 2010 year:
  * import eo from 'date-fns/locale/eo'
- * var result = parse(
- *   '28-a de februaro',
- *   "do 'de' MMMM",
- *   new Date(2010, 0, 1),
- *   {locale: eo}
- * )
+ * var result = parse('28-a de februaro', "do 'de' MMMM", new Date(2010, 0, 1), {
+ *   locale: eo
+ * })
  * //=> Sun Feb 28 2010 00:00:00
  */
 function parse(
@@ -22876,6 +23075,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * Return the start of a month for the given date.
  * The result will be in the local timezone.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} date - the original date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
  * @param {0|1|2} [options.additionalDigits=2] - passed to `toDate`. See [toDate]{@link https://date-fns.org/docs/toDate}
@@ -22920,6 +23124,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * @description
  * Subtract the specified number of months from the given date.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} date - the date to be changed
  * @param {Number} amount - the amount of months to be subtracted
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
@@ -22960,6 +23169,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  *
  * @description
  * Get the day of the month of the given date.
+ *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|String|Number} date - the given date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
@@ -23002,6 +23216,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * @description
  * Get the day of the week of the given date.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} date - the given date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
  * @param {0|1|2} [options.additionalDigits=2] - passed to `toDate`. See [toDate]{@link https://date-fns.org/docs/toDate}
@@ -23042,6 +23261,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  *
  * @description
  * Get the month of the given date.
+ *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|String|Number} date - the given date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
@@ -23084,6 +23308,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * @description
  * Get the year of the given date.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} date - the given date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
  * @param {0|1|2} [options.additionalDigits=2] - passed to `toDate`. See [toDate]{@link https://date-fns.org/docs/toDate}
@@ -23125,6 +23354,11 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * @description
  * Are the given dates equal?
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} dateLeft - the first date to compare
  * @param {Date|String|Number} dateRight - the second date to compare
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
@@ -23136,14 +23370,16 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * @example
  * // Are 2 July 2014 06:30:45.000 and 2 July 2014 06:30:45.500 equal?
  * var result = isEqual(
- *   new Date(2014, 6, 2, 6, 30, 45, 0)
+ *   new Date(2014, 6, 2, 6, 30, 45, 0),
  *   new Date(2014, 6, 2, 6, 30, 45, 500)
  * )
  * //=> false
  */
-function isEqual (dirtyLeftDate, dirtyRightDate, dirtyOptions) {
+function isEqual(dirtyLeftDate, dirtyRightDate, dirtyOptions) {
   if (arguments.length < 2) {
-    throw new TypeError('2 arguments required, but only ' + arguments.length + ' present')
+    throw new TypeError(
+      '2 arguments required, but only ' + arguments.length + ' present'
+    )
   }
 
   var dateLeft = Object(__WEBPACK_IMPORTED_MODULE_0__toDate_index_js__["a" /* default */])(dirtyLeftDate, dirtyOptions)
@@ -23173,6 +23409,11 @@ var toDate = __webpack_require__(3);
  * @description
  * Return the start of a day for the given date.
  * The result will be in the local timezone.
+ *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
  *
  * @param {Date|String|Number} date - the original date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
@@ -23208,6 +23449,11 @@ function startOfDay (dirtyDate, dirtyOptions) {
  * @description
  * Are the given dates in the same day?
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} dateLeft - the first date to check
  * @param {Date|String|Number} dateRight - the second date to check
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
@@ -23218,15 +23464,14 @@ function startOfDay (dirtyDate, dirtyOptions) {
  *
  * @example
  * // Are 4 September 06:00:00 and 4 September 18:00:00 in the same day?
- * var result = isSameDay(
- *   new Date(2014, 8, 4, 6, 0),
- *   new Date(2014, 8, 4, 18, 0)
- * )
+ * var result = isSameDay(new Date(2014, 8, 4, 6, 0), new Date(2014, 8, 4, 18, 0))
  * //=> true
  */
-function isSameDay (dirtyDateLeft, dirtyDateRight, dirtyOptions) {
+function isSameDay(dirtyDateLeft, dirtyDateRight, dirtyOptions) {
   if (arguments.length < 2) {
-    throw new TypeError('2 arguments required, but only ' + arguments.length + ' present')
+    throw new TypeError(
+      '2 arguments required, but only ' + arguments.length + ' present'
+    )
   }
 
   var dateLeftStartOfDay = startOfDay(dirtyDateLeft, dirtyOptions)
@@ -23256,11 +23501,16 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * @description
  * Set the day of the month to the given date.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} date - the date to be changed
  * @param {Number} dayOfMonth - the day of the month of the new date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
  * @param {0|1|2} [options.additionalDigits=2] - passed to `toDate`. See [toDate]{@link https://date-fns.org/docs/toDate}
- * @returns {Date} the new date with the day of the month setted
+ * @returns {Date} the new date with the day of the month set
  * @throws {TypeError} 2 arguments required
  * @throws {RangeError} `options.additionalDigits` must be 0, 1 or 2
  *
@@ -23303,11 +23553,16 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * @description
  * Set the month to the given date.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} date - the date to be changed
  * @param {Number} month - the month of the new date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
  * @param {0|1|2} [options.additionalDigits=2] - passed to `toDate`. See [toDate]{@link https://date-fns.org/docs/toDate}
- * @returns {Date} the new date with the month setted
+ * @returns {Date} the new date with the month set
  * @throws {TypeError} 2 arguments required
  * @throws {RangeError} `options.additionalDigits` must be 0, 1 or 2
  *
@@ -23357,11 +23612,16 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * @description
  * Set the year to the given date.
  *
+ *
+ * ### v2.0.0 breaking changes:
+ *
+ * - [Changes that are common for the whole library](https://github.com/date-fns/date-fns/blob/master/docs/upgradeGuide.md#Common-Changes).
+ *
  * @param {Date|String|Number} date - the date to be changed
  * @param {Number} year - the year of the new date
  * @param {Options} [options] - the object with options. See [Options]{@link https://date-fns.org/docs/Options}
  * @param {0|1|2} [options.additionalDigits=2] - passed to `toDate`. See [toDate]{@link https://date-fns.org/docs/toDate}
- * @returns {Date} the new date with the year setted
+ * @returns {Date} the new date with the year set
  * @throws {TypeError} 2 arguments required
  * @throws {RangeError} `options.additionalDigits` must be 0, 1 or 2
  *
@@ -23402,7 +23662,7 @@ function setYear (dirtyDate, dirtyYear, dirtyOptions) {
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
 /* WEBPACK VAR INJECTION */(function(global) {/**!
  * @fileOverview Kickass library to create and place poppers near their reference elements.
- * @version 1.12.9
+ * @version 1.14.6
  * @license
  * Copyright (c) 2016 Federico Zivolo and contributors
  *
@@ -23425,6 +23685,7 @@ Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
  * SOFTWARE.
  */
 var isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
+
 var longerTimeoutBrowsers = ['Edge', 'Trident', 'Firefox'];
 var timeoutDuration = 0;
 for (var i = 0; i < longerTimeoutBrowsers.length; i += 1) {
@@ -23498,7 +23759,8 @@ function getStyleComputedProperty(element, property) {
     return [];
   }
   // NOTE: 1 DOM access here
-  var css = getComputedStyle(element, null);
+  var window = element.ownerDocument.defaultView;
+  var css = window.getComputedStyle(element, null);
   return property ? css[property] : css;
 }
 
@@ -23544,11 +23806,31 @@ function getScrollParent(element) {
       overflowX = _getStyleComputedProp.overflowX,
       overflowY = _getStyleComputedProp.overflowY;
 
-  if (/(auto|scroll)/.test(overflow + overflowY + overflowX)) {
+  if (/(auto|scroll|overlay)/.test(overflow + overflowY + overflowX)) {
     return element;
   }
 
   return getScrollParent(getParentNode(element));
+}
+
+var isIE11 = isBrowser && !!(window.MSInputMethodContext && document.documentMode);
+var isIE10 = isBrowser && /MSIE 10/.test(navigator.userAgent);
+
+/**
+ * Determines if the browser is Internet Explorer
+ * @method
+ * @memberof Popper.Utils
+ * @param {Number} version to check
+ * @returns {Boolean} isIE
+ */
+function isIE(version) {
+  if (version === 11) {
+    return isIE11;
+  }
+  if (version === 10) {
+    return isIE10;
+  }
+  return isIE11 || isIE10;
 }
 
 /**
@@ -23559,21 +23841,28 @@ function getScrollParent(element) {
  * @returns {Element} offset parent
  */
 function getOffsetParent(element) {
-  // NOTE: 1 DOM access here
-  var offsetParent = element && element.offsetParent;
-  var nodeName = offsetParent && offsetParent.nodeName;
-
-  if (!nodeName || nodeName === 'BODY' || nodeName === 'HTML') {
-    if (element) {
-      return element.ownerDocument.documentElement;
-    }
-
+  if (!element) {
     return document.documentElement;
   }
 
-  // .offsetParent will return the closest TD or TABLE in case
+  var noOffsetParent = isIE(10) ? document.body : null;
+
+  // NOTE: 1 DOM access here
+  var offsetParent = element.offsetParent || null;
+  // Skip hidden elements which don't have an offsetParent
+  while (offsetParent === noOffsetParent && element.nextElementSibling) {
+    offsetParent = (element = element.nextElementSibling).offsetParent;
+  }
+
+  var nodeName = offsetParent && offsetParent.nodeName;
+
+  if (!nodeName || nodeName === 'BODY' || nodeName === 'HTML') {
+    return element ? element.ownerDocument.documentElement : document.documentElement;
+  }
+
+  // .offsetParent will return the closest TH, TD or TABLE in case
   // no offsetParent is present, I hate this job...
-  if (['TD', 'TABLE'].indexOf(offsetParent.nodeName) !== -1 && getStyleComputedProperty(offsetParent, 'position') === 'static') {
+  if (['TH', 'TD', 'TABLE'].indexOf(offsetParent.nodeName) !== -1 && getStyleComputedProperty(offsetParent, 'position') === 'static') {
     return getOffsetParent(offsetParent);
   }
 
@@ -23710,29 +23999,14 @@ function getBordersSize(styles, axis) {
   return parseFloat(styles['border' + sideA + 'Width'], 10) + parseFloat(styles['border' + sideB + 'Width'], 10);
 }
 
-/**
- * Tells if you are running Internet Explorer 10
- * @method
- * @memberof Popper.Utils
- * @returns {Boolean} isIE10
- */
-var isIE10 = undefined;
-
-var isIE10$1 = function () {
-  if (isIE10 === undefined) {
-    isIE10 = navigator.appVersion.indexOf('MSIE 10') !== -1;
-  }
-  return isIE10;
-};
-
 function getSize(axis, body, html, computedStyle) {
-  return Math.max(body['offset' + axis], body['scroll' + axis], html['client' + axis], html['offset' + axis], html['scroll' + axis], isIE10$1() ? html['offset' + axis] + computedStyle['margin' + (axis === 'Height' ? 'Top' : 'Left')] + computedStyle['margin' + (axis === 'Height' ? 'Bottom' : 'Right')] : 0);
+  return Math.max(body['offset' + axis], body['scroll' + axis], html['client' + axis], html['offset' + axis], html['scroll' + axis], isIE(10) ? parseInt(html['offset' + axis]) + parseInt(computedStyle['margin' + (axis === 'Height' ? 'Top' : 'Left')]) + parseInt(computedStyle['margin' + (axis === 'Height' ? 'Bottom' : 'Right')]) : 0);
 }
 
-function getWindowSizes() {
+function getWindowSizes(document) {
   var body = document.body;
   var html = document.documentElement;
-  var computedStyle = isIE10$1() && getComputedStyle(html);
+  var computedStyle = isIE(10) && getComputedStyle(html);
 
   return {
     height: getSize('Height', body, html, computedStyle),
@@ -23824,8 +24098,8 @@ function getBoundingClientRect(element) {
   // IE10 10 FIX: Please, don't ask, the element isn't
   // considered in DOM in some circumstances...
   // This isn't reproducible in IE10 compatibility mode of IE11
-  if (isIE10$1()) {
-    try {
+  try {
+    if (isIE(10)) {
       rect = element.getBoundingClientRect();
       var scrollTop = getScroll(element, 'top');
       var scrollLeft = getScroll(element, 'left');
@@ -23833,10 +24107,10 @@ function getBoundingClientRect(element) {
       rect.left += scrollLeft;
       rect.bottom += scrollTop;
       rect.right += scrollLeft;
-    } catch (err) {}
-  } else {
-    rect = element.getBoundingClientRect();
-  }
+    } else {
+      rect = element.getBoundingClientRect();
+    }
+  } catch (e) {}
 
   var result = {
     left: rect.left,
@@ -23846,7 +24120,7 @@ function getBoundingClientRect(element) {
   };
 
   // subtract scrollbar size from sizes
-  var sizes = element.nodeName === 'HTML' ? getWindowSizes() : {};
+  var sizes = element.nodeName === 'HTML' ? getWindowSizes(element.ownerDocument) : {};
   var width = sizes.width || element.clientWidth || result.right - result.left;
   var height = sizes.height || element.clientHeight || result.bottom - result.top;
 
@@ -23868,7 +24142,9 @@ function getBoundingClientRect(element) {
 }
 
 function getOffsetRectRelativeToArbitraryNode(children, parent) {
-  var isIE10 = isIE10$1();
+  var fixedPosition = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+
+  var isIE10 = isIE(10);
   var isHTML = parent.nodeName === 'HTML';
   var childrenRect = getBoundingClientRect(children);
   var parentRect = getBoundingClientRect(parent);
@@ -23878,6 +24154,11 @@ function getOffsetRectRelativeToArbitraryNode(children, parent) {
   var borderTopWidth = parseFloat(styles.borderTopWidth, 10);
   var borderLeftWidth = parseFloat(styles.borderLeftWidth, 10);
 
+  // In cases where the parent is fixed, we must ignore negative scroll in offset calc
+  if (fixedPosition && isHTML) {
+    parentRect.top = Math.max(parentRect.top, 0);
+    parentRect.left = Math.max(parentRect.left, 0);
+  }
   var offsets = getClientRect({
     top: childrenRect.top - parentRect.top - borderTopWidth,
     left: childrenRect.left - parentRect.left - borderLeftWidth,
@@ -23905,7 +24186,7 @@ function getOffsetRectRelativeToArbitraryNode(children, parent) {
     offsets.marginLeft = marginLeft;
   }
 
-  if (isIE10 ? parent.contains(scrollParent) : parent === scrollParent && scrollParent.nodeName !== 'BODY') {
+  if (isIE10 && !fixedPosition ? parent.contains(scrollParent) : parent === scrollParent && scrollParent.nodeName !== 'BODY') {
     offsets = includeScroll(offsets, parent);
   }
 
@@ -23913,13 +24194,15 @@ function getOffsetRectRelativeToArbitraryNode(children, parent) {
 }
 
 function getViewportOffsetRectRelativeToArtbitraryNode(element) {
+  var excludeScroll = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+
   var html = element.ownerDocument.documentElement;
   var relativeOffset = getOffsetRectRelativeToArbitraryNode(element, html);
   var width = Math.max(html.clientWidth, window.innerWidth || 0);
   var height = Math.max(html.clientHeight, window.innerHeight || 0);
 
-  var scrollTop = getScroll(html);
-  var scrollLeft = getScroll(html, 'left');
+  var scrollTop = !excludeScroll ? getScroll(html) : 0;
+  var scrollLeft = !excludeScroll ? getScroll(html, 'left') : 0;
 
   var offset = {
     top: scrollTop - relativeOffset.top + relativeOffset.marginTop,
@@ -23951,6 +24234,26 @@ function isFixed(element) {
 }
 
 /**
+ * Finds the first parent of an element that has a transformed property defined
+ * @method
+ * @memberof Popper.Utils
+ * @argument {Element} element
+ * @returns {Element} first transformed parent or documentElement
+ */
+
+function getFixedPositionOffsetParent(element) {
+  // This check is needed to avoid errors in case one of the elements isn't defined for any reason
+  if (!element || !element.parentElement || isIE()) {
+    return document.documentElement;
+  }
+  var el = element.parentElement;
+  while (el && getStyleComputedProperty(el, 'transform') === 'none') {
+    el = el.parentElement;
+  }
+  return el || document.documentElement;
+}
+
+/**
  * Computed the boundaries limits and return them
  * @method
  * @memberof Popper.Utils
@@ -23958,16 +24261,20 @@ function isFixed(element) {
  * @param {HTMLElement} reference
  * @param {number} padding
  * @param {HTMLElement} boundariesElement - Element used to define the boundaries
+ * @param {Boolean} fixedPosition - Is in fixed position mode
  * @returns {Object} Coordinates of the boundaries
  */
 function getBoundaries(popper, reference, padding, boundariesElement) {
+  var fixedPosition = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : false;
+
   // NOTE: 1 DOM access here
+
   var boundaries = { top: 0, left: 0 };
-  var offsetParent = findCommonOffsetParent(popper, reference);
+  var offsetParent = fixedPosition ? getFixedPositionOffsetParent(popper) : findCommonOffsetParent(popper, reference);
 
   // Handle viewport case
   if (boundariesElement === 'viewport') {
-    boundaries = getViewportOffsetRectRelativeToArtbitraryNode(offsetParent);
+    boundaries = getViewportOffsetRectRelativeToArtbitraryNode(offsetParent, fixedPosition);
   } else {
     // Handle other cases based on DOM element used as boundaries
     var boundariesNode = void 0;
@@ -23982,11 +24289,11 @@ function getBoundaries(popper, reference, padding, boundariesElement) {
       boundariesNode = boundariesElement;
     }
 
-    var offsets = getOffsetRectRelativeToArbitraryNode(boundariesNode, offsetParent);
+    var offsets = getOffsetRectRelativeToArbitraryNode(boundariesNode, offsetParent, fixedPosition);
 
     // In case of HTML, we need a different computation
     if (boundariesNode.nodeName === 'HTML' && !isFixed(offsetParent)) {
-      var _getWindowSizes = getWindowSizes(),
+      var _getWindowSizes = getWindowSizes(popper.ownerDocument),
           height = _getWindowSizes.height,
           width = _getWindowSizes.width;
 
@@ -24001,10 +24308,12 @@ function getBoundaries(popper, reference, padding, boundariesElement) {
   }
 
   // Add paddings
-  boundaries.left += padding;
-  boundaries.top += padding;
-  boundaries.right -= padding;
-  boundaries.bottom -= padding;
+  padding = padding || 0;
+  var isPaddingNumber = typeof padding === 'number';
+  boundaries.left += isPaddingNumber ? padding : padding.left || 0;
+  boundaries.top += isPaddingNumber ? padding : padding.top || 0;
+  boundaries.right -= isPaddingNumber ? padding : padding.right || 0;
+  boundaries.bottom -= isPaddingNumber ? padding : padding.bottom || 0;
 
   return boundaries;
 }
@@ -24083,11 +24392,14 @@ function computeAutoPlacement(placement, refRect, popper, reference, boundariesE
  * @param {Object} state
  * @param {Element} popper - the popper element
  * @param {Element} reference - the reference element (the popper will be relative to this)
+ * @param {Element} fixedPosition - is in fixed position mode
  * @returns {Object} An object containing the offsets which will be applied to the popper
  */
 function getReferenceOffsets(state, popper, reference) {
-  var commonOffsetParent = findCommonOffsetParent(popper, reference);
-  return getOffsetRectRelativeToArbitraryNode(reference, commonOffsetParent);
+  var fixedPosition = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : null;
+
+  var commonOffsetParent = fixedPosition ? getFixedPositionOffsetParent(popper) : findCommonOffsetParent(popper, reference);
+  return getOffsetRectRelativeToArbitraryNode(reference, commonOffsetParent, fixedPosition);
 }
 
 /**
@@ -24098,9 +24410,10 @@ function getReferenceOffsets(state, popper, reference) {
  * @returns {Object} object containing width and height properties
  */
 function getOuterSizes(element) {
-  var styles = getComputedStyle(element);
-  var x = parseFloat(styles.marginTop) + parseFloat(styles.marginBottom);
-  var y = parseFloat(styles.marginLeft) + parseFloat(styles.marginRight);
+  var window = element.ownerDocument.defaultView;
+  var styles = window.getComputedStyle(element);
+  var x = parseFloat(styles.marginTop || 0) + parseFloat(styles.marginBottom || 0);
+  var y = parseFloat(styles.marginLeft || 0) + parseFloat(styles.marginRight || 0);
   var result = {
     width: element.offsetWidth + y,
     height: element.offsetHeight + x
@@ -24260,7 +24573,7 @@ function update() {
   };
 
   // compute reference element offsets
-  data.offsets.reference = getReferenceOffsets(this.state, this.popper, this.reference);
+  data.offsets.reference = getReferenceOffsets(this.state, this.popper, this.reference, this.options.positionFixed);
 
   // compute auto placement, store placement inside the data object,
   // modifiers will be able to edit `placement` if needed
@@ -24270,9 +24583,12 @@ function update() {
   // store the computed placement inside `originalPlacement`
   data.originalPlacement = data.placement;
 
+  data.positionFixed = this.options.positionFixed;
+
   // compute the popper offsets
   data.offsets.popper = getPopperOffsets(this.popper, data.offsets.reference, data.placement);
-  data.offsets.popper.position = 'absolute';
+
+  data.offsets.popper.position = this.options.positionFixed ? 'fixed' : 'absolute';
 
   // run the modifiers
   data = runModifiers(this.modifiers, data);
@@ -24312,7 +24628,7 @@ function getSupportedPropertyName(property) {
   var prefixes = [false, 'ms', 'Webkit', 'Moz', 'O'];
   var upperProp = property.charAt(0).toUpperCase() + property.slice(1);
 
-  for (var i = 0; i < prefixes.length - 1; i++) {
+  for (var i = 0; i < prefixes.length; i++) {
     var prefix = prefixes[i];
     var toCheck = prefix ? '' + prefix + upperProp : property;
     if (typeof document.body.style[toCheck] !== 'undefined') {
@@ -24323,7 +24639,7 @@ function getSupportedPropertyName(property) {
 }
 
 /**
- * Destroy the popper
+ * Destroys the popper.
  * @method
  * @memberof Popper
  */
@@ -24333,9 +24649,12 @@ function destroy() {
   // touch DOM only if `applyStyle` modifier is enabled
   if (isModifierEnabled(this.modifiers, 'applyStyle')) {
     this.popper.removeAttribute('x-placement');
-    this.popper.style.left = '';
     this.popper.style.position = '';
     this.popper.style.top = '';
+    this.popper.style.left = '';
+    this.popper.style.right = '';
+    this.popper.style.bottom = '';
+    this.popper.style.willChange = '';
     this.popper.style[getSupportedPropertyName('transform')] = '';
   }
 
@@ -24427,7 +24746,7 @@ function removeEventListeners(reference, state) {
 
 /**
  * It will remove resize/scroll events and won't recalculate popper position
- * when they are triggered. It also won't trigger onUpdate callback anymore,
+ * when they are triggered. It also won't trigger `onUpdate` callback anymore,
  * unless you call `update` method manually.
  * @method
  * @memberof Popper
@@ -24523,12 +24842,12 @@ function applyStyle(data) {
  * @method
  * @memberof Popper.modifiers
  * @param {HTMLElement} reference - The reference element used to position the popper
- * @param {HTMLElement} popper - The HTML element used as popper.
+ * @param {HTMLElement} popper - The HTML element used as popper
  * @param {Object} options - Popper.js options
  */
 function applyStyleOnLoad(reference, popper, options, modifierOptions, state) {
   // compute reference element offsets
-  var referenceOffsets = getReferenceOffsets(state, popper, reference);
+  var referenceOffsets = getReferenceOffsets(state, popper, reference, options.positionFixed);
 
   // compute auto placement, store placement inside the data object,
   // modifiers will be able to edit `placement` if needed
@@ -24539,10 +24858,56 @@ function applyStyleOnLoad(reference, popper, options, modifierOptions, state) {
 
   // Apply `position` to popper before anything else because
   // without the position applied we can't guarantee correct computations
-  setStyles(popper, { position: 'absolute' });
+  setStyles(popper, { position: options.positionFixed ? 'fixed' : 'absolute' });
 
   return options;
 }
+
+/**
+ * @function
+ * @memberof Popper.Utils
+ * @argument {Object} data - The data object generated by `update` method
+ * @argument {Boolean} shouldRound - If the offsets should be rounded at all
+ * @returns {Object} The popper's position offsets rounded
+ *
+ * The tale of pixel-perfect positioning. It's still not 100% perfect, but as
+ * good as it can be within reason.
+ * Discussion here: https://github.com/FezVrasta/popper.js/pull/715
+ *
+ * Low DPI screens cause a popper to be blurry if not using full pixels (Safari
+ * as well on High DPI screens).
+ *
+ * Firefox prefers no rounding for positioning and does not have blurriness on
+ * high DPI screens.
+ *
+ * Only horizontal placement and left/right values need to be considered.
+ */
+function getRoundedOffsets(data, shouldRound) {
+  var _data$offsets = data.offsets,
+      popper = _data$offsets.popper,
+      reference = _data$offsets.reference;
+
+
+  var isVertical = ['left', 'right'].indexOf(data.placement) !== -1;
+  var isVariation = data.placement.indexOf('-') !== -1;
+  var sameWidthOddness = reference.width % 2 === popper.width % 2;
+  var bothOddWidth = reference.width % 2 === 1 && popper.width % 2 === 1;
+  var noRound = function noRound(v) {
+    return v;
+  };
+
+  var horizontalToInteger = !shouldRound ? noRound : isVertical || isVariation || sameWidthOddness ? Math.round : Math.floor;
+  var verticalToInteger = !shouldRound ? noRound : Math.round;
+
+  return {
+    left: horizontalToInteger(bothOddWidth && !isVariation && shouldRound ? popper.left - 1 : popper.left),
+    top: verticalToInteger(popper.top),
+    bottom: verticalToInteger(popper.bottom),
+    right: horizontalToInteger(popper.right)
+  };
+}
+
+var isFirefox = isBrowser && /Firefox/i.test(navigator.userAgent);
 
 /**
  * @function
@@ -24574,13 +24939,7 @@ function computeStyle(data, options) {
     position: popper.position
   };
 
-  // floor sides to avoid blurry text
-  var offsets = {
-    left: Math.floor(popper.left),
-    top: Math.floor(popper.top),
-    bottom: Math.floor(popper.bottom),
-    right: Math.floor(popper.right)
-  };
+  var offsets = getRoundedOffsets(data, window.devicePixelRatio < 2 || !isFirefox);
 
   var sideA = x === 'bottom' ? 'top' : 'bottom';
   var sideB = y === 'right' ? 'left' : 'right';
@@ -24602,12 +24961,22 @@ function computeStyle(data, options) {
   var left = void 0,
       top = void 0;
   if (sideA === 'bottom') {
-    top = -offsetParentRect.height + offsets.bottom;
+    // when offsetParent is <html> the positioning is relative to the bottom of the screen (excluding the scrollbar)
+    // and not the bottom of the html element
+    if (offsetParent.nodeName === 'HTML') {
+      top = -offsetParent.clientHeight + offsets.bottom;
+    } else {
+      top = -offsetParentRect.height + offsets.bottom;
+    }
   } else {
     top = offsets.top;
   }
   if (sideB === 'right') {
-    left = -offsetParentRect.width + offsets.right;
+    if (offsetParent.nodeName === 'HTML') {
+      left = -offsetParent.clientWidth + offsets.right;
+    } else {
+      left = -offsetParentRect.width + offsets.right;
+    }
   } else {
     left = offsets.left;
   }
@@ -24716,7 +25085,7 @@ function arrow(data, options) {
 
   //
   // extends keepTogether behavior making sure the popper and its
-  // reference have enough pixels in conjuction
+  // reference have enough pixels in conjunction
   //
 
   // top/left side
@@ -24786,7 +25155,7 @@ function getOppositeVariation(variation) {
  * - `top-end` (on top of reference, right aligned)
  * - `right-start` (on right of reference, top aligned)
  * - `bottom` (on bottom, centered)
- * - `auto-right` (on the side with more space available, alignment depends by placement)
+ * - `auto-end` (on the side with more space available, alignment depends by placement)
  *
  * @static
  * @type {Array}
@@ -24842,7 +25211,7 @@ function flip(data, options) {
     return data;
   }
 
-  var boundaries = getBoundaries(data.instance.popper, data.instance.reference, options.padding, options.boundariesElement);
+  var boundaries = getBoundaries(data.instance.popper, data.instance.reference, options.padding, options.boundariesElement, data.positionFixed);
 
   var placement = data.placement.split('-')[0];
   var placementOpposite = getOppositePlacement(placement);
@@ -25134,7 +25503,27 @@ function preventOverflow(data, options) {
     boundariesElement = getOffsetParent(boundariesElement);
   }
 
-  var boundaries = getBoundaries(data.instance.popper, data.instance.reference, options.padding, boundariesElement);
+  // NOTE: DOM access here
+  // resets the popper's position so that the document size can be calculated excluding
+  // the size of the popper element itself
+  var transformProp = getSupportedPropertyName('transform');
+  var popperStyles = data.instance.popper.style; // assignment to help minification
+  var top = popperStyles.top,
+      left = popperStyles.left,
+      transform = popperStyles[transformProp];
+
+  popperStyles.top = '';
+  popperStyles.left = '';
+  popperStyles[transformProp] = '';
+
+  var boundaries = getBoundaries(data.instance.popper, data.instance.reference, options.padding, boundariesElement, data.positionFixed);
+
+  // NOTE: DOM access here
+  // restores the original style properties after the offsets have been computed
+  popperStyles.top = top;
+  popperStyles.left = left;
+  popperStyles[transformProp] = transform;
+
   options.boundaries = boundaries;
 
   var order = options.priority;
@@ -25308,7 +25697,7 @@ var modifiers = {
    * The `offset` modifier can shift your popper on both its axis.
    *
    * It accepts the following units:
-   * - `px` or unitless, interpreted as pixels
+   * - `px` or unit-less, interpreted as pixels
    * - `%` or `%r`, percentage relative to the length of the reference element
    * - `%p`, percentage relative to the length of the popper element
    * - `vw`, CSS viewport width unit
@@ -25316,7 +25705,7 @@ var modifiers = {
    *
    * For length is intended the main axis relative to the placement of the popper.<br />
    * This means that if the placement is `top` or `bottom`, the length will be the
-   * `width`. In case of `left` or `right`, it will be the height.
+   * `width`. In case of `left` or `right`, it will be the `height`.
    *
    * You can provide a single value (as `Number` or `String`), or a pair of values
    * as `String` divided by a comma or one (or more) white spaces.<br />
@@ -25337,7 +25726,7 @@ var modifiers = {
    * ```
    * > **NB**: If you desire to apply offsets to your poppers in a way that may make them overlap
    * > with their reference element, unfortunately, you will have to disable the `flip` modifier.
-   * > More on this [reading this issue](https://github.com/FezVrasta/popper.js/issues/373)
+   * > You can read more on this at this [issue](https://github.com/FezVrasta/popper.js/issues/373).
    *
    * @memberof modifiers
    * @inner
@@ -25358,7 +25747,7 @@ var modifiers = {
   /**
    * Modifier used to prevent the popper from being positioned outside the boundary.
    *
-   * An scenario exists where the reference itself is not within the boundaries.<br />
+   * A scenario exists where the reference itself is not within the boundaries.<br />
    * We can say it has "escaped the boundaries" — or just "escaped".<br />
    * In this case we need to decide whether the popper should either:
    *
@@ -25388,23 +25777,23 @@ var modifiers = {
     /**
      * @prop {number} padding=5
      * Amount of pixel used to define a minimum distance between the boundaries
-     * and the popper this makes sure the popper has always a little padding
+     * and the popper. This makes sure the popper always has a little padding
      * between the edges of its container
      */
     padding: 5,
     /**
      * @prop {String|HTMLElement} boundariesElement='scrollParent'
-     * Boundaries used by the modifier, can be `scrollParent`, `window`,
+     * Boundaries used by the modifier. Can be `scrollParent`, `window`,
      * `viewport` or any DOM element.
      */
     boundariesElement: 'scrollParent'
   },
 
   /**
-   * Modifier used to make sure the reference and its popper stay near eachothers
-   * without leaving any gap between the two. Expecially useful when the arrow is
-   * enabled and you want to assure it to point to its reference element.
-   * It cares only about the first axis, you can still have poppers with margin
+   * Modifier used to make sure the reference and its popper stay near each other
+   * without leaving any gap between the two. Especially useful when the arrow is
+   * enabled and you want to ensure that it points to its reference element.
+   * It cares only about the first axis. You can still have poppers with margin
    * between the popper and its reference element.
    * @memberof modifiers
    * @inner
@@ -25422,7 +25811,7 @@ var modifiers = {
    * This modifier is used to move the `arrowElement` of the popper to make
    * sure it is positioned between the reference element and its popper element.
    * It will read the outer size of the `arrowElement` node to detect how many
-   * pixels of conjuction are needed.
+   * pixels of conjunction are needed.
    *
    * It has no effect if no `arrowElement` is provided.
    * @memberof modifiers
@@ -25461,7 +25850,7 @@ var modifiers = {
      * @prop {String|Array} behavior='flip'
      * The behavior used to change the popper's placement. It can be one of
      * `flip`, `clockwise`, `counterclockwise` or an array with a list of valid
-     * placements (with optional variations).
+     * placements (with optional variations)
      */
     behavior: 'flip',
     /**
@@ -25471,9 +25860,9 @@ var modifiers = {
     padding: 5,
     /**
      * @prop {String|HTMLElement} boundariesElement='viewport'
-     * The element which will define the boundaries of the popper position,
-     * the popper will never be placed outside of the defined boundaries
-     * (except if keepTogether is enabled)
+     * The element which will define the boundaries of the popper position.
+     * The popper will never be placed outside of the defined boundaries
+     * (except if `keepTogether` is enabled)
      */
     boundariesElement: 'viewport'
   },
@@ -25537,8 +25926,8 @@ var modifiers = {
     fn: computeStyle,
     /**
      * @prop {Boolean} gpuAcceleration=true
-     * If true, it uses the CSS 3d transformation to position the popper.
-     * Otherwise, it will use the `top` and `left` properties.
+     * If true, it uses the CSS 3D transformation to position the popper.
+     * Otherwise, it will use the `top` and `left` properties
      */
     gpuAcceleration: true,
     /**
@@ -25565,7 +25954,7 @@ var modifiers = {
    * Note that if you disable this modifier, you must make sure the popper element
    * has its position set to `absolute` before Popper.js can do its work!
    *
-   * Just disable this modifier and define you own to achieve the desired effect.
+   * Just disable this modifier and define your own to achieve the desired effect.
    *
    * @memberof modifiers
    * @inner
@@ -25582,27 +25971,27 @@ var modifiers = {
     /**
      * @deprecated since version 1.10.0, the property moved to `computeStyle` modifier
      * @prop {Boolean} gpuAcceleration=true
-     * If true, it uses the CSS 3d transformation to position the popper.
-     * Otherwise, it will use the `top` and `left` properties.
+     * If true, it uses the CSS 3D transformation to position the popper.
+     * Otherwise, it will use the `top` and `left` properties
      */
     gpuAcceleration: undefined
   }
 };
 
 /**
- * The `dataObject` is an object containing all the informations used by Popper.js
- * this object get passed to modifiers and to the `onCreate` and `onUpdate` callbacks.
+ * The `dataObject` is an object containing all the information used by Popper.js.
+ * This object is passed to modifiers and to the `onCreate` and `onUpdate` callbacks.
  * @name dataObject
  * @property {Object} data.instance The Popper.js instance
  * @property {String} data.placement Placement applied to popper
  * @property {String} data.originalPlacement Placement originally defined on init
  * @property {Boolean} data.flipped True if popper has been flipped by flip modifier
- * @property {Boolean} data.hide True if the reference element is out of boundaries, useful to know when to hide the popper.
+ * @property {Boolean} data.hide True if the reference element is out of boundaries, useful to know when to hide the popper
  * @property {HTMLElement} data.arrowElement Node used as arrow by arrow modifier
- * @property {Object} data.styles Any CSS property defined here will be applied to the popper, it expects the JavaScript nomenclature (eg. `marginBottom`)
- * @property {Object} data.arrowStyles Any CSS property defined here will be applied to the popper arrow, it expects the JavaScript nomenclature (eg. `marginBottom`)
+ * @property {Object} data.styles Any CSS property defined here will be applied to the popper. It expects the JavaScript nomenclature (eg. `marginBottom`)
+ * @property {Object} data.arrowStyles Any CSS property defined here will be applied to the popper arrow. It expects the JavaScript nomenclature (eg. `marginBottom`)
  * @property {Object} data.boundaries Offsets of the popper boundaries
- * @property {Object} data.offsets The measurements of popper, reference and arrow elements.
+ * @property {Object} data.offsets The measurements of popper, reference and arrow elements
  * @property {Object} data.offsets.popper `top`, `left`, `width`, `height` values
  * @property {Object} data.offsets.reference `top`, `left`, `width`, `height` values
  * @property {Object} data.offsets.arrow] `top` and `left` offsets, only one of them will be different from 0
@@ -25610,9 +25999,9 @@ var modifiers = {
 
 /**
  * Default options provided to Popper.js constructor.<br />
- * These can be overriden using the `options` argument of Popper.js.<br />
- * To override an option, simply pass as 3rd argument an object with the same
- * structure of this object, example:
+ * These can be overridden using the `options` argument of Popper.js.<br />
+ * To override an option, simply pass an object with the same
+ * structure of the `options` object, as the 3rd argument. For example:
  * ```
  * new Popper(ref, pop, {
  *   modifiers: {
@@ -25626,13 +26015,19 @@ var modifiers = {
  */
 var Defaults = {
   /**
-   * Popper's placement
+   * Popper's placement.
    * @prop {Popper.placements} placement='bottom'
    */
   placement: 'bottom',
 
   /**
-   * Whether events (resize, scroll) are initially enabled
+   * Set this to true if you want popper to position it self in 'fixed' mode
+   * @prop {Boolean} positionFixed=false
+   */
+  positionFixed: false,
+
+  /**
+   * Whether events (resize, scroll) are initially enabled.
    * @prop {Boolean} eventsEnabled=true
    */
   eventsEnabled: true,
@@ -25646,17 +26041,17 @@ var Defaults = {
 
   /**
    * Callback called when the popper is created.<br />
-   * By default, is set to no-op.<br />
+   * By default, it is set to no-op.<br />
    * Access Popper.js instance with `data.instance`.
    * @prop {onCreate}
    */
   onCreate: function onCreate() {},
 
   /**
-   * Callback called when the popper is updated, this callback is not called
+   * Callback called when the popper is updated. This callback is not called
    * on the initialization/creation of the popper, but only on subsequent
    * updates.<br />
-   * By default, is set to no-op.<br />
+   * By default, it is set to no-op.<br />
    * Access Popper.js instance with `data.instance`.
    * @prop {onUpdate}
    */
@@ -25664,7 +26059,7 @@ var Defaults = {
 
   /**
    * List of modifiers used to modify the offsets before they are applied to the popper.
-   * They provide most of the functionalities of Popper.js
+   * They provide most of the functionalities of Popper.js.
    * @prop {modifiers}
    */
   modifiers: modifiers
@@ -25684,10 +26079,10 @@ var Defaults = {
 // Methods
 var Popper = function () {
   /**
-   * Create a new Popper.js instance
+   * Creates a new Popper.js instance.
    * @class Popper
    * @param {HTMLElement|referenceObject} reference - The reference element used to position the popper
-   * @param {HTMLElement} popper - The HTML element used as popper.
+   * @param {HTMLElement} popper - The HTML element used as the popper
    * @param {Object} options - Your custom options to override the ones defined in [Defaults](#defaults)
    * @return {Object} instance - The generated Popper.js instance
    */
@@ -25783,7 +26178,7 @@ var Popper = function () {
     }
 
     /**
-     * Schedule an update, it will run on the next UI update available
+     * Schedules an update. It will run on the next UI update available.
      * @method scheduleUpdate
      * @memberof Popper
      */
@@ -25820,7 +26215,7 @@ var Popper = function () {
  * new Popper(referenceObject, popperNode);
  * ```
  *
- * NB: This feature isn't supported in Internet Explorer 10
+ * NB: This feature isn't supported in Internet Explorer 10.
  * @name referenceObject
  * @property {Function} data.getBoundingClientRect
  * A function that returns a set of coordinates compatible with the native `getBoundingClientRect` method.
@@ -26074,11 +26469,14 @@ var render = function() {
                     keydown: function($event) {
                       if (
                         !("button" in $event) &&
-                        _vm._k($event.keyCode, "esc", 27, $event.key)
+                        _vm._k($event.keyCode, "esc", 27, $event.key, [
+                          "Esc",
+                          "Escape"
+                        ])
                       ) {
                         return null
                       }
-                      _vm.onEsc($event)
+                      return _vm.onEsc($event)
                     }
                   }
                 },
@@ -26378,93 +26776,92 @@ var render = function() {
                                     ],
                                     1
                                   )
-                                })
+                                }),
+                                0
                               )
                             : _vm.currentView === "month"
-                              ? _c(
-                                  "div",
-                                  {
-                                    staticClass:
-                                      "md-datepicker-panel md-datepicker-month-selector"
-                                  },
-                                  [
-                                    _c(
-                                      "md-button",
+                            ? _c(
+                                "div",
+                                {
+                                  staticClass:
+                                    "md-datepicker-panel md-datepicker-month-selector"
+                                },
+                                [
+                                  _c(
+                                    "md-button",
+                                    {
+                                      staticClass: "md-datepicker-year-trigger",
+                                      on: {
+                                        click: function($event) {
+                                          _vm.currentView = "year"
+                                        }
+                                      }
+                                    },
+                                    [_vm._v(_vm._s(_vm.currentYear))]
+                                  ),
+                                  _vm._v(" "),
+                                  _vm._l(_vm.locale.months, function(
+                                    month,
+                                    index
+                                  ) {
+                                    return _c(
+                                      "span",
                                       {
+                                        key: month,
                                         staticClass:
-                                          "md-datepicker-year-trigger",
+                                          "md-datepicker-month-button",
+                                        class: {
+                                          "md-datepicker-selected":
+                                            _vm.currentMonthName === month
+                                        },
                                         on: {
                                           click: function($event) {
-                                            _vm.currentView = "year"
+                                            _vm.switchMonth(index)
                                           }
                                         }
                                       },
-                                      [_vm._v(_vm._s(_vm.currentYear))]
-                                    ),
-                                    _vm._v(" "),
-                                    _vm._l(_vm.locale.months, function(
-                                      month,
-                                      index
-                                    ) {
+                                      [_vm._v(_vm._s(month))]
+                                    )
+                                  })
+                                ],
+                                2
+                              )
+                            : _vm.currentView === "year"
+                            ? _c(
+                                "keep-alive",
+                                [
+                                  _c(
+                                    "md-content",
+                                    {
+                                      staticClass:
+                                        "md-datepicker-panel md-datepicker-year-selector md-scrollbar"
+                                    },
+                                    _vm._l(_vm.availableYears, function(year) {
                                       return _c(
                                         "span",
                                         {
-                                          key: month,
+                                          key: year,
                                           staticClass:
-                                            "md-datepicker-month-button",
+                                            "md-datepicker-year-button",
                                           class: {
                                             "md-datepicker-selected":
-                                              _vm.currentMonthName === month
+                                              _vm.currentYear === year
                                           },
                                           on: {
                                             click: function($event) {
-                                              _vm.switchMonth(index)
+                                              _vm.switchYear(year)
                                             }
                                           }
                                         },
-                                        [_vm._v(_vm._s(month))]
+                                        [_vm._v(_vm._s(year))]
                                       )
-                                    })
-                                  ],
-                                  2
-                                )
-                              : _vm.currentView === "year"
-                                ? _c(
-                                    "keep-alive",
-                                    [
-                                      _c(
-                                        "md-content",
-                                        {
-                                          staticClass:
-                                            "md-datepicker-panel md-datepicker-year-selector md-scrollbar"
-                                        },
-                                        _vm._l(_vm.availableYears, function(
-                                          year
-                                        ) {
-                                          return _c(
-                                            "span",
-                                            {
-                                              key: year,
-                                              staticClass:
-                                                "md-datepicker-year-button",
-                                              class: {
-                                                "md-datepicker-selected":
-                                                  _vm.currentYear === year
-                                              },
-                                              on: {
-                                                click: function($event) {
-                                                  _vm.switchYear(year)
-                                                }
-                                              }
-                                            },
-                                            [_vm._v(_vm._s(year))]
-                                          )
-                                        })
-                                      )
-                                    ],
-                                    1
+                                    }),
+                                    0
                                   )
-                                : _vm._e()
+                                ],
+                                1
+                              )
+                            : _vm._e()
                         ],
                         1
                       )
@@ -26670,7 +27067,7 @@ var render = function() {
         staticClass: "md-date-icon",
         nativeOn: {
           click: function($event) {
-            _vm.toggleDialog($event)
+            return _vm.toggleDialog($event)
           }
         }
       }),
@@ -26680,7 +27077,7 @@ var render = function() {
         attrs: { type: _vm.type, pattern: _vm.pattern },
         nativeOn: {
           focus: function($event) {
-            _vm.onFocus($event)
+            return _vm.onFocus($event)
           }
         },
         model: {
@@ -27474,11 +27871,11 @@ var render = function() {
                   keydown: function($event) {
                     if (
                       !("button" in $event) &&
-                      _vm._k($event.keyCode, "enter", 13, $event.key)
+                      _vm._k($event.keyCode, "enter", 13, $event.key, "Enter")
                     ) {
                       return null
                     }
-                    _vm.onConfirm($event)
+                    return _vm.onConfirm($event)
                   }
                 },
                 model: {
@@ -28349,40 +28746,46 @@ var render = function() {
               on: {
                 focus: function($event) {
                   $event.preventDefault()
-                  _vm.onFocus($event)
+                  return _vm.onFocus($event)
                 },
                 blur: function($event) {
                   $event.preventDefault()
-                  _vm.removeHighlight($event)
+                  return _vm.removeHighlight($event)
                 },
                 click: _vm.openSelect,
                 keydown: [
                   function($event) {
                     if (
                       !("button" in $event) &&
-                      _vm._k($event.keyCode, "down", 40, $event.key)
+                      _vm._k($event.keyCode, "down", 40, $event.key, [
+                        "Down",
+                        "ArrowDown"
+                      ])
                     ) {
                       return null
                     }
-                    _vm.openSelect($event)
+                    return _vm.openSelect($event)
                   },
                   function($event) {
                     if (
                       !("button" in $event) &&
-                      _vm._k($event.keyCode, "enter", 13, $event.key)
+                      _vm._k($event.keyCode, "enter", 13, $event.key, "Enter")
                     ) {
                       return null
                     }
-                    _vm.openSelect($event)
+                    return _vm.openSelect($event)
                   },
                   function($event) {
                     if (
                       !("button" in $event) &&
-                      _vm._k($event.keyCode, "space", 32, $event.key)
+                      _vm._k($event.keyCode, "space", 32, $event.key, [
+                        " ",
+                        "Spacebar"
+                      ])
                     ) {
                       return null
                     }
-                    _vm.openSelect($event)
+                    return _vm.openSelect($event)
                   }
                 ]
               },
@@ -28405,7 +28808,7 @@ var render = function() {
       _c("md-drop-down-icon", {
         nativeOn: {
           click: function($event) {
-            _vm.openSelect($event)
+            return _vm.openSelect($event)
           }
         }
       }),
@@ -28916,46 +29319,147 @@ var render = function() {
         class: _vm.iconClass,
         nativeOn: {
           click: function($event) {
-            _vm.openPicker($event)
+            return _vm.openPicker($event)
           }
         }
       }),
       _vm._v(" "),
-      _c(
-        "input",
-        _vm._b(
-          {
-            directives: [
+      {
+        disabled: _vm.disabled,
+        required: _vm.required,
+        placeholder: _vm.placeholder
+      }.type === "checkbox"
+        ? _c(
+            "input",
+            _vm._b(
               {
-                name: "model",
-                rawName: "v-model",
-                value: _vm.model,
-                expression: "model"
-              }
-            ],
-            staticClass: "md-input",
-            attrs: { readonly: "" },
-            domProps: { value: _vm.model },
-            on: {
-              click: _vm.openPicker,
-              blur: _vm.onBlur,
-              input: function($event) {
-                if ($event.target.composing) {
-                  return
+                directives: [
+                  {
+                    name: "model",
+                    rawName: "v-model",
+                    value: _vm.model,
+                    expression: "model"
+                  }
+                ],
+                staticClass: "md-input",
+                attrs: { readonly: "", type: "checkbox" },
+                domProps: {
+                  checked: Array.isArray(_vm.model)
+                    ? _vm._i(_vm.model, null) > -1
+                    : _vm.model
+                },
+                on: {
+                  click: _vm.openPicker,
+                  blur: _vm.onBlur,
+                  change: function($event) {
+                    var $$a = _vm.model,
+                      $$el = $event.target,
+                      $$c = $$el.checked ? true : false
+                    if (Array.isArray($$a)) {
+                      var $$v = null,
+                        $$i = _vm._i($$a, $$v)
+                      if ($$el.checked) {
+                        $$i < 0 && (_vm.model = $$a.concat([$$v]))
+                      } else {
+                        $$i > -1 &&
+                          (_vm.model = $$a
+                            .slice(0, $$i)
+                            .concat($$a.slice($$i + 1)))
+                      }
+                    } else {
+                      _vm.model = $$c
+                    }
+                  }
                 }
-                _vm.model = $event.target.value
-              }
-            }
-          },
-          "input",
-          {
+              },
+              "input",
+              {
+                disabled: _vm.disabled,
+                required: _vm.required,
+                placeholder: _vm.placeholder
+              },
+              false
+            )
+          )
+        : {
             disabled: _vm.disabled,
             required: _vm.required,
             placeholder: _vm.placeholder
-          },
-          false
-        )
-      ),
+          }.type === "radio"
+        ? _c(
+            "input",
+            _vm._b(
+              {
+                directives: [
+                  {
+                    name: "model",
+                    rawName: "v-model",
+                    value: _vm.model,
+                    expression: "model"
+                  }
+                ],
+                staticClass: "md-input",
+                attrs: { readonly: "", type: "radio" },
+                domProps: { checked: _vm._q(_vm.model, null) },
+                on: {
+                  click: _vm.openPicker,
+                  blur: _vm.onBlur,
+                  change: function($event) {
+                    _vm.model = null
+                  }
+                }
+              },
+              "input",
+              {
+                disabled: _vm.disabled,
+                required: _vm.required,
+                placeholder: _vm.placeholder
+              },
+              false
+            )
+          )
+        : _c(
+            "input",
+            _vm._b(
+              {
+                directives: [
+                  {
+                    name: "model",
+                    rawName: "v-model",
+                    value: _vm.model,
+                    expression: "model"
+                  }
+                ],
+                staticClass: "md-input",
+                attrs: {
+                  readonly: "",
+                  type: {
+                    disabled: _vm.disabled,
+                    required: _vm.required,
+                    placeholder: _vm.placeholder
+                  }.type
+                },
+                domProps: { value: _vm.model },
+                on: {
+                  click: _vm.openPicker,
+                  blur: _vm.onBlur,
+                  input: function($event) {
+                    if ($event.target.composing) {
+                      return
+                    }
+                    _vm.model = $event.target.value
+                  }
+                }
+              },
+              "input",
+              {
+                disabled: _vm.disabled,
+                required: _vm.required,
+                placeholder: _vm.placeholder
+              },
+              false
+            )
+          ),
       _vm._v(" "),
       _c(
         "input",
@@ -30081,7 +30585,7 @@ var render = function() {
           attrs: { "md-disabled": _vm.isDisabled },
           nativeOn: {
             click: function($event) {
-              _vm.toggleExpand($event)
+              return _vm.toggleExpand($event)
             }
           }
         },
@@ -30463,7 +30967,13 @@ var render = function() {
   var _c = _vm._self._c || _h
   return _c(
     "transition",
-    { attrs: { name: "md-progress-spinner", appear: "" } },
+    {
+      attrs: {
+        name: "md-progress-spinner",
+        duration: { determinate: 2000, indeterminate: 400 }[_vm.mdMode],
+        appear: ""
+      }
+    },
     [
       _c(
         "div",
@@ -30475,8 +30985,8 @@ var render = function() {
           _c(
             "svg",
             {
+              ref: "md-progress-spinner-draw",
               staticClass: "md-progress-spinner-draw",
-              style: _vm.svgStyles,
               attrs: {
                 preserveAspectRatio: "xMidYMid meet",
                 focusable: "false",
@@ -30485,8 +30995,8 @@ var render = function() {
             },
             [
               _c("circle", {
+                ref: "md-progress-spinner-circle",
                 staticClass: "md-progress-spinner-circle",
-                style: _vm.circleStyles,
                 attrs: { cx: "50%", cy: "50%", r: _vm.circleRadius }
               })
             ]
@@ -30617,7 +31127,7 @@ var render = function() {
           on: {
             click: function($event) {
               $event.stopPropagation()
-              _vm.toggleCheck($event)
+              return _vm.toggleCheck($event)
             }
           }
         },
@@ -30667,7 +31177,7 @@ var render = function() {
               on: {
                 click: function($event) {
                   $event.preventDefault()
-                  _vm.toggleCheck($event)
+                  return _vm.toggleCheck($event)
                 }
               }
             },
@@ -31774,8 +32284,8 @@ var render = function() {
               _vm.data.done && _vm.data.editable
                 ? _c("md-edit-icon", { staticClass: "md-stepper-editable" })
                 : _vm.data.done
-                  ? _c("md-check-icon", { staticClass: "md-stepper-done" })
-                  : [_vm._v(_vm._s(_vm.MdSteppers.getStepperNumber(_vm.index)))]
+                ? _c("md-check-icon", { staticClass: "md-stepper-done" })
+                : [_vm._v(_vm._s(_vm.MdSteppers.getStepperNumber(_vm.index)))]
             ],
             2
           ),
@@ -31790,10 +32300,10 @@ var render = function() {
               _vm._v(_vm._s(_vm.data.error))
             ])
           : _vm.data.description
-            ? _c("span", { staticClass: "md-stepper-description" }, [
-                _vm._v(_vm._s(_vm.data.description))
-              ])
-            : _vm._e()
+          ? _c("span", { staticClass: "md-stepper-description" }, [
+              _vm._v(_vm._s(_vm.data.description))
+            ])
+          : _vm._e()
       ])
     ],
     1
@@ -31835,7 +32345,8 @@ var render = function() {
                 key: index,
                 attrs: { index: index }
               })
-            })
+            }),
+            1
           )
         : _vm._e(),
       _vm._v(" "),
@@ -32210,7 +32721,7 @@ var render = function() {
           on: {
             click: function($event) {
               $event.stopPropagation()
-              _vm.toggleCheck($event)
+              return _vm.toggleCheck($event)
             }
           }
         },
@@ -32266,7 +32777,7 @@ var render = function() {
               on: {
                 click: function($event) {
                   $event.preventDefault()
-                  _vm.toggleCheck($event)
+                  return _vm.toggleCheck($event)
                 }
               }
             },
@@ -33235,36 +33746,37 @@ var render = function() {
               !_vm.$scopedSlots["md-table-row"]
                 ? _c("tbody", [_vm._t("default")], 2)
                 : _vm.value.length
-                  ? _c(
-                      "tbody",
-                      _vm._l(_vm.value, function(item, index) {
-                        return _c(
-                          "md-table-row-ghost",
-                          {
-                            key: _vm.getRowId(item, _vm.mdModelId),
-                            attrs: {
-                              "md-id": _vm.getRowId(item, _vm.mdModelId),
-                              "md-index": index,
-                              "md-item": item
-                            }
-                          },
-                          [_vm._t("md-table-row", null, { item: item })],
-                          2
-                        )
-                      })
-                    )
-                  : _vm.$scopedSlots["md-table-empty-state"]
-                    ? _c("tbody", [
-                        _c("tr", [
-                          _c(
-                            "td",
-                            { attrs: { colspan: _vm.headerCount } },
-                            [_vm._t("md-table-empty-state")],
-                            2
-                          )
-                        ])
-                      ])
-                    : _vm._e()
+                ? _c(
+                    "tbody",
+                    _vm._l(_vm.value, function(item, index) {
+                      return _c(
+                        "md-table-row-ghost",
+                        {
+                          key: _vm.getRowId(item, _vm.mdModelId),
+                          attrs: {
+                            "md-id": _vm.getRowId(item, _vm.mdModelId),
+                            "md-index": index,
+                            "md-item": item
+                          }
+                        },
+                        [_vm._t("md-table-row", null, { item: item })],
+                        2
+                      )
+                    }),
+                    1
+                  )
+                : _vm.$scopedSlots["md-table-empty-state"]
+                ? _c("tbody", [
+                    _c("tr", [
+                      _c(
+                        "td",
+                        { attrs: { colspan: _vm.headerCount } },
+                        [_vm._t("md-table-empty-state")],
+                        2
+                      )
+                    ])
+                  ])
+                : _vm._e()
             ],
             1
           ),
@@ -33719,7 +34231,8 @@ var render = function() {
                       { key: amount, attrs: { value: amount } },
                       [_vm._v(_vm._s(amount))]
                     )
-                  })
+                  }),
+                  1
                 )
               ],
               1

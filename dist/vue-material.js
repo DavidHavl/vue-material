@@ -1,6 +1,6 @@
 /*!
  * vue-material v1.0.0-beta-10.2
- * Made with <3 by marcosmoura 2018
+ * Made with <3 by marcosmoura 2019
  * Released under the MIT License.
  */
 (function webpackUniversalModuleDefinition(root, factory) {

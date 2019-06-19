@@ -114,11 +114,16 @@ test('should add and remove a value from model when model is an array by clickin
     }
   })
   const label = wrapper.find('label')[0]
+  expect(wrapper.data().model).toEqual([])
 
-  label.trigger('click')
+  label.trigger('click', {
+    cancelBubble: true
+  })
   expect(wrapper.data().model).toEqual(['1'])
 
-  label.trigger('click')
+  label.trigger('click', {
+    cancelBubble: true
+  })
   expect(wrapper.data().model).toEqual([])
 })
 
@@ -138,7 +143,9 @@ test('should toggle a checked class when checked', async () => {
 
   expect(checkbox.hasClass('md-checked')).toBe(true)
 
-  label.trigger('click')
+  label.trigger('click', {
+    cancelBubble: true
+  })
   await checkbox.vm.$nextTick()
   expect(checkbox.hasClass('md-checked')).toBe(false)
 })

@@ -1,4 +1,4 @@
-import sass from 'node-sass'
+import sass from 'sass'
 import { readdirSync, statSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { resolvePath } from '../config'
